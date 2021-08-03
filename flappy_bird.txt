@@ -1,0 +1,1193 @@
+include 'C:\Documents and Settings\денис\Мои документы\student\FASM\fasmw17322\INCLUDE\MACRO\PROC16.INC'
+       org 100h
+
+;=====================MAIN_LOGIC================================================>
+
+EntryPoint:
+
+       stdcall Memory.Initialize
+       stdcall Random.Initialize
+       stdcall Screen.SetMode, 0013h
+       stdcall Memory.Allocate
+       stdcall port.Initialize
+
+
+retFromEnd:
+       stdcall startMenu
+
+       cmp [activeMenu], 2
+       je final
+
+       stdcall initStart
+       cmp [gameEnd], 1
+       je final
+
+
+animLoop:
+
+        mov ah, 2ch
+        int 21h
+
+        mov bl, dl
+        sub bl, [oldMsec]
+        cmp bl, 1
+        jbe animLoop
+
+        mov [oldMsec], dl
+        mov ax, [shift1]
+        add [Ybird1], ax
+        mov ax, [shift2]
+        add [Ybird2], ax
+
+
+        cmp [Ybird1], 190
+        jb @f
+        cmp [Ybird1], 205
+        jb retFromEnd
+
+
+@@:
+        cmp [Ybird2], 190
+        jb @f
+        cmp [Ybird2], 205
+        jb retFromEnd
+
+@@:
+
+
+
+@@:
+
+
+
+        stdcall checkBorder, [Xbird1], [Ybird1], [sizeBirdY] , [sizeBirdX],  [sizePx], 1
+        stdcall checkBorder, [Xbird2], [Ybird2], [sizeBirdY] , [sizeBirdX],  [sizePx], 2
+@@:
+
+        cmp [trashContent1], 0
+        jne @f
+
+        mov [shift1], 15
+
+@@:
+
+        cmp [trashContent2], 0
+        jne @f
+        mov [shift2], 15
+
+
+@@:
+
+
+        push [buffer]
+        pop es
+        stdcall drawPhone
+
+        stdcall drawScore, 1, 10, 80, 90
+        stdcall drawMatrix, [sizePx], [Ybird1], [Xbird1] , [sizeBirdY] , [sizeBirdX], [ofs1], Bird
+
+        stdcall drawMatrix, [sizePx], [Ybird2], [Xbird2] , [sizeBirdY] , [sizeBirdX], [ofs2], Bird
+
+        stdcall drawPlatforms
+
+
+        push ds
+
+        mov     ax, $A000
+        mov     es, ax
+
+
+        mov     ds, [buffer]
+        mov     cx, 32000
+        xor     di, di
+        xor     si, si
+        rep     movsw
+
+        pop ds
+
+
+Key:
+        mov ah, 01h
+        int 16h
+
+        jnz gotKey
+
+        jmp animLoop
+
+
+gotKey:
+
+        cmp ah, 01h
+        jne @f
+        jmp retFromEnd
+@@:
+
+        cmp ah, 1fh
+        jne @f
+        mov ax, [jumpOfs]
+        sub [Ybird1], ax
+
+
+
+        stdcall optionsBit, 70h
+
+
+@@:
+        cmp ah, 26h
+        jne @f
+        mov ax, [jumpOfs]
+        sub [Ybird2], ax
+
+
+
+        stdcall optionsBit, 69h
+
+
+@@:
+
+        mov ah, 0h
+        int 16h
+
+
+
+
+
+
+
+
+        jmp animLoop
+
+
+
+
+
+
+
+
+final:
+       stdcall initStart
+       stdcall resultPage
+
+
+       stdcall Keyboard.ReadKey
+       ret
+
+
+;=====================MAIN_LOGIC================================================>
+
+
+;===============>
+proc drawOnePlat uses es  di cx,\
+                X, y1, y2, y3, y4, pwidth
+
+
+
+
+        cmp [X], 320
+        jg mis
+
+
+        cmp [X], 0
+        jg checkRight
+
+
+        cmp [X], -20
+        jg checkLeft
+
+        jmp start
+
+
+
+checkRight:
+        ; i?iaa?ea ni?aaa
+        mov ax, 320
+        sub ax, [X]
+
+        cmp ax,[pwidth]
+        jae start
+
+        mov [pwidth], ax
+        jmp start
+
+       ; i?iaa?ea neaaa
+
+checkLeft:
+         ;stdcall  Keyboard.ReadKey
+
+
+        mov ax, [X]
+        add [pwidth],ax
+        mov [X], 0
+
+
+
+start:
+
+        mov cx, [y1]
+        mov di, [X]
+
+lp1:
+        push cx
+
+        mov cx, [pwidth]
+        mov al, 5h
+        rep stosb
+
+        add di, 320
+        sub di, [pwidth]
+
+        pop cx
+        loop lp1
+
+
+
+        mov cx, [y3]
+        sub cx, [y2]
+        mov ax, 320
+        mul [y2]
+        mov di, ax
+        add di, [X]
+
+lp2:
+        push cx
+
+        mov cx, [pwidth]
+        mov al, 5h
+        rep stosb
+
+        add di, 320
+        sub di, [pwidth]
+
+        pop cx
+        loop lp2
+
+
+        mov cx, 170
+        sub cx, [y4]
+        mov ax, 320
+        mul [y4]
+        mov di, ax
+        add di, [X]
+
+lp3:
+        push cx
+
+        mov cx, [pwidth]
+        mov al, 5h
+        rep stosb
+
+        add di, 320
+        sub di, [pwidth]
+
+        pop cx
+        loop lp3
+
+
+
+mis:
+
+        ret
+
+endp
+
+
+;===============>
+proc drawPlatforms
+        mov cx, 6
+        xor bx, bx
+        xor di, di
+
+lpPlat:
+
+        stdcall drawOnePlat, [ArrPlatX+bx], [ArrPlatY+di],[ArrPlatY+di+2],[ArrPlatY+di+4], [ArrPlatY+di+6], [platWidth]
+
+
+
+        mov ax, [platWidth]
+        neg ax
+
+        sub [ArrPlatX+bx], 2
+
+        cmp [ArrPlatX+bx], ax
+        jg @f
+
+
+        stdcall Random.Get, 80, 120
+        mov [ArrPlatX+bx], 320
+        add [ArrPlatX+bx], ax
+
+
+
+
+       ; radmom y1
+        stdcall Random.Get, 10, 60
+        mov [ArrPlatY+di], ax
+
+
+        ; radmom y2
+        mov dx, ax
+        add ax, 43
+        mov [ArrPlatY+di+2], ax
+
+
+        mov dx, 170
+        sub dx, [ArrPlatY+di+2]
+        sub dx, 40
+        sub dx, 20
+
+        ; radmom y3
+        stdcall Random.Get, 1, dx
+        add ax, 10
+        add ax, [ArrPlatY+di+2]
+        mov [ArrPlatY+di+4], ax
+
+        add ax, 43
+        mov [ArrPlatY+di+6], ax
+
+
+
+@@:
+
+
+        add bx, 2
+        add di, 8
+        loop lpPlat
+
+
+        ret
+
+endp
+
+
+
+;===============>
+proc checkBorder uses es di cx,\
+                 posX, posY, sizeY, sizeX, sizePix, Player:Byte
+
+
+        locals
+                BirdWidth dw ?
+                BirdHeight dw ?
+        endl
+
+
+
+        mov ax, [sizePix]
+        mul [sizeX]
+        mov [BirdWidth], ax
+
+        mov ax, [sizePix]
+        mul [sizeY]
+        mov [BirdHeight], ax
+
+
+        mov bx, 170
+        sub bx, [BirdHeight]
+
+        cmp [posY], bx
+        jae lose
+
+
+        mov cx, 6
+        xor bx, bx
+        xor di, di
+
+lpPlatCheck:
+        ;  i?ia?ea: ioe?ea i?aaaa ieaooi?iu
+        mov ax, [posX]
+        add ax, [BirdWidth]
+        cmp ax, [ArrPlatX+bx]
+        jb AllGood
+
+        ; i?ia?ea: ioe?ea eaaaa ieaooi?iu
+        mov ax, [ArrPlatX+bx]
+        add ax, [platWidth]
+        cmp [posX], ax
+        ja AllGood
+
+        ; i?ia?ea: ioe?ea a?acaeanu a aa?oi?? ieaooi?io
+        mov ax, [posY]
+        cmp ax, [ArrPlatY+di]
+        jb lose
+
+        ; i?ia?ea: ioe?ea a?acaeanu a n?aai?? ieaooi?io
+        mov ax, [posY]
+        add ax, [sizeY]
+        cmp ax, [ArrPlatY+di+2]
+        jb AllGood
+
+
+        mov ax, [posY]
+        cmp ax, [ArrPlatY+di+4]
+        jb lose
+
+        mov ax, [posY]
+        add ax, [BirdHeight]
+        cmp ax, [ArrPlatY+di+6]
+        ja   lose
+
+
+        jmp   AllGood
+
+
+lose:
+
+        cmp [Player], 1
+        jne @f
+        mov [trashContent1], 0
+        jmp endProc
+
+@@:
+        mov [trashContent2], 0
+        jmp endProc
+
+
+AllGood:
+
+        add bx, 2
+        add di, 8
+
+        loop lpPlatCheck
+
+
+
+
+
+endProc:
+
+
+
+
+
+
+        ret
+
+endp
+
+
+
+
+
+;===============>
+proc checkTrashContent, \
+             pcheckTrashContent, pscore, pshift
+
+
+        cmp [pcheckTrashContent], 1
+        je @f
+        add [pscore], 1
+        mov [pshift], 15
+
+@@:
+        ret
+
+endp
+
+;===============>
+proc drawPhone
+
+        xor di, di
+
+        mov cx, 320*170
+        mov al, 0bh
+        rep stosb
+
+        mov cx, 320*5
+        mov al, 32h
+        rep stosb
+
+        mov cx, 320*25
+        mov al, 59h
+        rep stosb
+
+        ret
+
+endp
+
+
+;===============>
+proc optionsBit,\
+        parBit
+
+
+        mov dx, 330h
+        mov al, 90h
+        out dx, al
+        mov ax, [parBit]
+        out dx, al
+        mov al, 7fh
+        out dx, al
+        mov al, 0f7h
+        out dx, al
+
+
+        ret
+
+endp
+
+;===============>
+proc initStart
+
+        mov [shift1], 2
+        mov [shift2], 2
+
+        mov [Ybird1], 20
+        mov [Xbird1], 30
+
+        mov [Ybird2], 30
+        mov [Xbird2], 30
+
+
+        cmp [trashContent1], 0
+        jne @f
+
+        add [score1], 1
+@@:
+
+        cmp [trashContent2], 0
+        jne @f
+
+        add [score2], 1
+@@:
+
+
+        cmp [score1], 9
+        je @f
+        cmp [score2], 9
+        jne skip
+
+@@:
+
+        mov [gameEnd], 1
+
+skip:
+
+        mov [trashContent1], 1
+        mov [trashContent2], 1
+
+
+
+
+        mov cx, 6
+        xor bx, bx
+        xor di, di
+        mov si, 0
+
+
+
+
+lpPlatAll:
+
+        stdcall Random.Get, 40, 70
+        mov [ArrPlatX+bx], 320
+        add ax, si
+        add [ArrPlatX+bx], ax
+        add si, 70
+
+
+
+       ; radmom y1
+        stdcall Random.Get, 10, 60
+        mov [ArrPlatY+di], ax
+
+
+        ; radmom y2
+        mov dx, ax
+        add ax, 40
+        mov [ArrPlatY+di+2], ax
+
+
+        mov dx, 170
+        sub dx, [ArrPlatY+di+2]
+        sub dx, 40
+        sub dx, 20
+
+        ; radmom y3
+        stdcall Random.Get, 1, dx
+        add ax, 10
+        add ax, [ArrPlatY+di+2]
+        mov [ArrPlatY+di+4], ax
+
+        add ax, 40
+        mov [ArrPlatY+di+6], ax
+
+
+
+        add bx, 2
+        add di, 8
+
+
+        loop lpPlatAll
+
+
+
+
+
+        ret
+
+endp
+
+;===============>
+proc drawScore, \
+                psize, px, py1, py2
+
+        mov ax, [score1]
+        mul [sizeMat]
+
+        add ax, lit0
+
+        stdcall drawMatrix, [psize], [py1], [px], 5, 4,0, ax
+
+        mov ax, [score2]
+        mul [sizeMat]
+
+        add ax, lit0
+
+        stdcall drawMatrix, [psize], [py2], [px], 5, 4,0, ax
+
+
+        ret
+
+endp
+
+
+;===============>
+proc Random.Get uses cx bx dx,\
+     wMin, wMax
+
+     mov        ax, [Random.wPrevNumber]
+     rol        ax, 7
+     add        ax, 23
+     mov        [Random.wPrevNumber], ax
+
+     mov        cx, [wMax]
+     sub        cx, [wMin]
+     inc        cx
+     xor        dx, dx
+     div        cx
+     mov        ax, dx
+     add        ax, [wMin]
+     ret
+endp
+
+;===============>
+proc resultPage uses es di
+
+        stdcall invalidate, 2ch
+
+        stdcall drawScore, 5, 140, 60, 100
+
+
+
+
+
+
+        mov cx, 4
+        mov bx, litE
+        mov di, 110
+        mov dx, 140
+lpLit2:
+        stdcall drawMatrix, 4, dx, di, 5, 4,0, bx
+
+        add di, 25
+        add bx, 20
+
+        cmp cx, 2
+        jne @f
+        mov bx, litT
+@@:
+
+
+        loop lpLit2
+
+
+
+
+
+
+        stdcall Keyboard.ReadKey
+        stdcall Keyboard.ReadKey
+        ret
+
+endp
+
+
+;===============>
+proc  Screen.WriteRect uses es di,  \
+        attr:BYTE, ppline, ppofsDo, size:WORD, ppofs
+
+        mov cx, [size]
+
+        mov ax, 320
+        mul [ppline]
+        add ax, [ppofsDo]
+        mov di, ax
+
+
+        xor ax, ax
+        mov al, [attr]
+        add al, byte [ppofs]
+
+
+ScreenRect.lp:
+        push cx
+
+        mov cx,[size]
+        rep stosb
+
+        add di, 320
+        sub di, [size]
+
+        pop cx
+        loop ScreenRect.lp
+        ret
+
+endp
+
+
+;===============>
+proc drawMatrix uses  es di cx bx dx,\
+              psizePx, pline, pofsDo, psizeY, psizeX, pofs, pdraw
+
+        mov bx, [pdraw]
+
+        mov cx, [psizeY]
+lpStrok:
+        push cx
+        mov cx, [psizeX]
+
+lpStolb:
+        push cx
+
+         cmp byte [bx], 0
+         je @f
+
+
+        stdcall Screen.WriteRect, [bx], [pline], [pofsDo], [psizePx], [pofs]
+
+@@:
+
+        mov dx, [psizePx]
+        add [pofsDo], dx
+
+        inc bx
+        pop cx
+        loop lpStolb
+
+        mov dx, [psizePx]
+        add [pline], dx
+
+        mov ax, [psizeX]
+        mul [psizePx]
+        sub [pofsDo], ax
+
+        pop cx
+        loop lpStrok
+
+        ret
+
+
+
+
+endp
+
+;===============>
+proc drawRamka uses es di,\
+     px, py, attr:Byte
+
+
+
+        mov ax, 320
+        mul [py]
+        mov di, ax
+        add di, [px]
+        mov al, [attr]
+
+        mov cx, 80
+        rep stosb
+
+        add di, 240
+        mov cx, 16
+lpRamka:
+        stosb
+        add di, 78
+        stosb
+        add di, 240
+        loop lpRamka
+
+        mov cx, 80
+        rep stosb
+
+
+        ret
+
+
+endp
+
+
+;===============>
+proc drawButton uses es di,\
+         px, py, attr:Byte
+
+xor di, di
+mov cx, 17
+mov ax, 320
+mul [py]
+mov di, ax
+add di, [px]
+
+mov al, [attr]
+lpButton:
+        push cx
+        mov cx, 80
+
+        rep stosb
+        add di, 240
+        rep stosb
+        pop cx
+        loop lpButton
+        ret
+
+endp
+
+;===============>
+proc Keyboard.ReadKey
+     xor        dx, dx
+     mov        ax, $0C08
+        int     21h
+        mov     dl, al
+        test    al, al
+        jnz     @F
+        mov     ah, $08
+        int     21h
+        mov     dh, al
+@@:
+        mov     ax, dx
+        ret
+endp
+
+
+;===============>
+proc invalidate,\
+                     color:BYTE
+        push 0A000h
+        pop es
+        xor di, di
+        mov cx, 320*200
+        mov al, [color]
+        rep stosb
+     ret
+endp
+
+;===============>
+proc    startMenu uses es di
+
+        stdcall invalidate, 35
+
+
+
+        stdcall drawButton, [butX1], [butY1], 36
+        stdcall drawButton, [butX2], [butY2], 36
+
+
+        stdcall drawRamka, [butX1], [butY1], 6
+
+
+        mov cx, 9
+        mov bx, litS
+        mov di, 119
+        mov dx, 90
+lpLit:
+        stdcall drawMatrix, 2, dx, di, 5, 4,0, bx
+
+        add di, 15
+        add bx, 20
+        cmp cx, 6
+        jne @f
+        mov bx, litT
+
+@@:
+
+        cmp cx, 5
+        jne @f
+        mov bx, litE
+        add dx, 20
+        mov di, 126
+
+@@:
+
+        cmp cx, 2
+        jne @f
+        mov bx, litT
+@@:
+
+
+        loop lpLit
+
+
+        lpMenu:
+        stdcall Keyboard.ReadKey
+        cmp ax, 5000h
+        jne @f
+        stdcall drawRamka, [butX1], [butY1], 36
+        stdcall drawRamka, [butX2], [butY2], 6
+        mov [activeMenu], 2
+@@:
+
+        cmp ax, 4800h
+        jne @f
+        mov [activeMenu], 1
+        stdcall drawRamka, [butX1], [butY1], 6
+        stdcall drawRamka, [butX2], [butY2], 36
+@@:
+        cmp ax, 0dh
+        jne lpMenu
+
+
+
+        ret
+
+endp
+
+;===============>
+proc port.Initialize
+
+        mov dx, 331h
+        mov al, 0ffh
+        out dx, al
+        mov al, 3fh
+        out dx, al
+
+        ret
+
+endp
+
+;===============>
+proc Random.Initialize
+     mov        ah, $2C
+     int        21h
+     mov        [Random.wPrevNumber], dx
+     ret
+endp
+
+;===============>
+proc Screen.SetMode uses es di bx,\
+     vModeInfo
+
+        mov ah, 0fh
+        int 10h
+        mov  bl, al
+
+        movzx ax, byte [vModeInfo]
+        int 10h
+
+        mov ah, 05h
+        mov al, byte [vModeInfo + 1]
+        int 10h
+
+        mov ax, bx
+        ret
+
+endp
+
+;===============>
+proc Memory.Allocate
+
+        mov     ah, 48h
+        mov     bx, 4096
+        int     21h
+        mov     [buffer], ax
+
+        ret
+endp
+
+;===============>
+proc Memory.Initialize
+
+        mov     ah, 4ah
+        mov     bx, 4096
+        int     21h
+
+        ret
+endp
+
+;===============>
+
+
+platWidth dw    20
+
+Random.wPrevNumber dw ?
+trashContent1 db 1
+trashContent2 db 1
+activeMenu db 1
+
+butX1 dw 110
+butY1 dw 87
+
+butX2 dw 110
+butY2 dw 107
+
+buffer dw ?
+
+score1 dw 0
+score2 dw 0
+sizeMat db 20
+gameEnd db 0
+
+
+
+
+lit0 db 0,1,1,0,\
+        1,0,0,1,\
+        1,0,0,1,\
+        1,0,0,1,\
+        0,1,1,0
+
+lit1 db 0,0,0,1,\
+        0,0,1,1,\
+        0,1,0,1,\
+        0,0,0,1,\
+        0,0,0,1
+
+lit2 db 0,1,1,0,\
+        1,0,0,1,\
+        0,0,1,0,\
+        0,1,0,0,\
+        1,1,1,1
+
+lit3 db 1,1,1,0,\
+        0,0,0,1,\
+        0,1,1,0,\
+        0,0,0,1,\
+        1,1,1,0
+
+lit4 db 1,0,0,1,\
+        1,0,0,1,\
+        1,1,1,1,\
+        0,0,0,1,\
+        0,0,0,1
+
+lit5 db 1,1,1,1,\
+        1,0,0,0,\
+        1,1,1,0,\
+        0,0,0,1,\
+        1,1,1,0
+
+lit6 db 0,1,1,0,\
+        1,0,0,0,\
+        1,1,1,0,\
+        1,0,0,1,\
+        0,1,1,0
+
+lit7 db 0,1,1,1,\
+        0,0,0,1,\
+        0,0,0,1,\
+        0,0,0,1,\
+        0,0,0,1
+
+lit8 db 0,1,1,0,\
+        1,0,0,1,\
+        0,1,1,0,\
+        1,0,0,1,\
+        0,1,1,0
+
+lit9 db 0,1,1,0,\
+        1,0,0,1,\
+        0,1,1,1,\
+        0,0,0,1,\
+        1,1,1,0
+
+
+litS db 0,1,1,1,\
+        1,0,0,0,\
+        0,1,1,0,\
+        1,0,0,1,\
+        0,1,1,0
+
+litT db 1,1,1,0,\
+        0,1,0,0,\
+        0,1,0,0,\
+        0,1,0,0,\
+        0,1,0,0
+
+litA db 0,1,1,0,\
+        1,0,0,1,\
+        1,1,1,1,\
+        1,0,0,1,\
+        1,0,0,1
+
+litR db 0,1,1,0,\
+        1,0,0,1,\
+        1,1,1,0,\
+        1,0,1,0,\
+        1,0,0,1
+
+
+litE db 1,1,1,1,\
+        1,0,0,0,\
+        1,1,1,1,\
+        1,0,0,0,\
+        1,1,1,1
+
+
+litX db 1,0,1,0,\
+        0,1,0,0,\
+        0,1,0,0,\
+        0,1,0,0,\
+        1,0,1,0
+
+litI db 1,1,1,0,\
+        0,1,0,0,\
+        0,1,0,0,\
+        0,1,0,0,\
+        1,1,1,0
+
+
+
+Bird db         0h, 0h, 0h, 0h, 0h, 0h, 10h, 10h, 10h, 10h, 10h, 10h, 0h, 0h, 0h, 0h, 0h, \
+                0h, 0h, 0h, 0h, 10h, 10h, 2Ch, 2Ch, 2Ch, 2Ch, 10h, 0fh, 10h, 0h, 0h, 0h, 0h, \
+                0h, 0h, 0h, 10h, 2Ch, 2Ch, 2Ch, 2Ch, 2Ch, 10h, 0fh, 0fh, 0fh, 10h, 0h, 0h, 0h, \
+                0h, 10h, 10h, 10h, 10h, 2Ch, 2Ch, 2Ch, 2Ch, 10h, 0fh, 0fh, 10h, 0fh, 10h, 0h, 0h,\
+                10h, 0fh,  0fh, 0fh, 0fh, 10h, 2Ch, 2Ch, 2Ch, 10h, 0fh, 0fh, 10h, 0fh, 10h, 0h, 0h,\
+                10h, 0fh,  0fh, 0fh, 0fh, 0fh, 10h, 2Ch, 2Ch, 2Ch, 10h, 0fh, 0fh, 0fh, 10h, 0h, 0h,\
+                10h, 2Ch,  0fh, 0fh, 0fh, 2Ch, 10h, 2Ch, 2Ch, 2Ch, 2Ch, 10h, 10h, 10h, 10h, 10h, 0h,\
+                0h, 10h, 2Ch, 2Ch, 2Ch, 10h, 2Ch, 2Ch, 2Ch, 2Ch, 10h, 28h, 28h, 28h, 28h, 28h, 10h, \
+                0h, 0h, 10h, 10h, 10h, 2Ah, 2Ah, 2Ah, 2Ah, 10h, 28h, 10h, 10h, 10h, 10h, 10h, 0h,\
+                0h, 0h, 0h, 0h, 10h, 2Ah, 2Ah, 2Ah, 2Ah, 2Ah, 10h, 28h, 28h, 28h, 28h, 10h, 0h,\
+                0h, 0h, 0h, 0h, 0h, 10h, 10h, 2Ah, 2Ah, 2Ah, 2Ah, 10h, 10h, 10h, 10h, 10h, 0h,\
+                0h, 0h, 0h, 0h, 0h, 0h, 0h, 10h, 10h, 10h, 10h, 0h, 0h, 0h, 0h, 0h, 0h
+
+
+
+
+
+
+
+
+Ybird1 dw 20
+Xbird1 dw 30
+
+Ybird2 dw 30
+Xbird2 dw 30
+
+shift1 dw ?
+shift2 dw ?
+
+
+oldMsec db ?
+sizeBirdY dw 12
+sizeBirdX dw 17
+sizePx dw 1
+
+
+jumpOfs dw 15
+
+color1 db 5
+ofs1 dw 0
+ofs2 dw 2
+
+
+
+ArrPlatX  dw 24 dup(?)
+ArrPlatY dw 6 dup (?)
+
